@@ -31,7 +31,7 @@ const PROMPTS = {
     "Christmas":   "Cuéntame un chiste navideño en español. Con referencias a Papá Noel, Reyes Magos, turrón o similares.",
     "Programming": "Cuéntame un chiste de programación o informática en español. Para que lo entiendan programadores.",
     "Dark":        "Cuéntame un chiste de humor negro en español. Sin censura, que sea oscuro de verdad.",
-    "Cunado":      "Cuéntame un chiste típico de cuñado español. De esos que suelta el cuñado en las comidas familiares: simples, un poco malos, con remate predecible pero que igual te arranca una sonrisa. Sobre fútbol, política, la crisis, los yernos, etc.",
+    "Cunado":      "Cuéntame un chiste típico de cuñado español. De esos que suelta el cuñado en las comidas familiares. Los que más gustan son los que empiezan por 'Camarero' y siguen con una frase, pero no te cierres únicamente a esos chistes.",
 };
 
 module.exports = {
