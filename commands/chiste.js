@@ -7,7 +7,6 @@ const {
     VoiceConnectionStatus,
 } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
-
 const fs = require("fs");
 
 module.exports = {
@@ -32,12 +31,14 @@ module.exports = {
         const texto = `${joke.setup}... ${joke.delivery}`;
 
         // 2. Edge TTS
-        const audioPath = `/tmp/chiste_${Date.now()}.mp3`;
+        const audioDir = `/tmp/chiste_${Date.now()}`;
+        const audioPath = `${audioDir}/audio.mp3`;
+        fs.mkdirSync(audioDir, { recursive: true });
 
         try {
             const tts = new MsEdgeTTS();
             await tts.setMetadata("es-ES-AlvaroNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-            await tts.toFile(audioPath, texto);
+            await tts.toFile(audioDir, texto);
         } catch (e) {
             console.error("Edge TTS error:", e);
             return interaction.editReply("❌ Error generando el audio.");
@@ -66,7 +67,7 @@ module.exports = {
 
         player.on("idle", () => {
             setTimeout(() => connection.destroy(), 500);
-            try { fs.unlinkSync(audioPath); } catch {}
+            try { fs.rmSync(audioDir, { recursive: true }); } catch {}
         });
 
         player.on("error", err => {
