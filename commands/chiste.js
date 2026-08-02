@@ -7,16 +7,29 @@ const {
     VoiceConnectionStatus,
 } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
+const Groq = require("groq-sdk");
 const fs = require("fs");
 
+const groq = new Groq({ apiKey: process.env.GROQ });
+
 const CATEGORIAS = {
-    "🎭 Varios":        "Misc",
+    "🎲 Cualquiera":        "Any",
+    "🎭 Varios":            "Misc",
     "😏 Juegos de palabras": "Pun",
-    "👻 Terror":        "Spooky",
-    "🎄 Navidad":       "Christmas",
-    "💻 Programación":  "Programming",
-    "🌑 Humor negro":   "Dark",
-    "🎲 Cualquiera":    "Any"
+    "👻 Terror":            "Spooky",
+    "🎄 Navidad":           "Christmas",
+    "💻 Programación":      "Programming",
+    "🌑 Humor negro":       "Dark",
+};
+
+const PROMPTS = {
+    "Any":         "Cuéntame un chiste original y gracioso en español. Puede ser de cualquier tipo.",
+    "Misc":        "Cuéntame un chiste gracioso y original en español.",
+    "Pun":         "Cuéntame un chiste de juego de palabras en español.",
+    "Spooky":      "Cuéntame un chiste de terror o de miedo en español.",
+    "Christmas":   "Cuéntame un chiste navideño en español.",
+    "Programming": "Cuéntame un chiste de programación o informática en español.",
+    "Dark":        "Cuéntame un chiste de humor negro en español. Sin censura.",
 };
 
 module.exports = {
@@ -43,15 +56,25 @@ module.exports = {
 
         const categoria = interaction.options.getString("categoria") ?? "Any";
 
-        // 1. Obtener chiste
-        const res = await fetch(`https://v2.jokeapi.dev/joke/${categoria}?lang=es&type=twopart`);
-        const joke = await res.json();
-
-        if (joke.error) {
-            return interaction.editReply(`❌ No encontré chistes en esa categoría en español. Prueba con otra.`);
+        // 1. Generar chiste con Groq
+        let texto;
+        try {
+            const respuesta = await groq.chat.completions.create({
+                model: "llama-3.1-8b-instant",
+                messages: [
+                    { 
+                        role: "system", 
+                        content: "Eres un comediante español. Respondes SOLO con el chiste, sin introducciones ni explicaciones ni comillas. El chiste debe tener un planteamiento y luego el remate." 
+                    },
+                    { role: "user", content: PROMPTS[categoria] }
+                ],
+                max_tokens: 200
+            });
+            texto = respuesta.choices[0].message.content.trim();
+        } catch (e) {
+            console.error("Groq error:", e);
+            return interaction.editReply("❌ Error generando el chiste.");
         }
-
-        const texto = `${joke.setup}... ${joke.delivery}`;
 
         // 2. Edge TTS
         const audioDir = `/tmp/chiste_${Date.now()}`;
