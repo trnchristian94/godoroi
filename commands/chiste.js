@@ -9,10 +9,26 @@ const {
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 const fs = require("fs");
 
+const CATEGORIAS = {
+    "🎭 Varios":        "Misc",
+    "😏 Juegos de palabras": "Pun",
+    "👻 Terror":        "Spooky",
+    "🎄 Navidad":       "Christmas",
+    "💻 Programación":  "Programming",
+    "🌑 Humor negro":   "Dark",
+    "🎲 Cualquiera":    "Any"
+};
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("chiste")
-        .setDescription("El bot se une a tu canal y cuenta un chiste"),
+        .setDescription("El bot se une a tu canal y cuenta un chiste")
+        .addStringOption(o =>
+            o.setName("categoria")
+                .setDescription("Tipo de chiste (opcional, por defecto cualquiera)")
+                .addChoices(
+                    ...Object.entries(CATEGORIAS).map(([name, value]) => ({ name, value }))
+                )),
 
     async execute(interaction) {
         const canal = interaction.member?.voice?.channel;
@@ -25,9 +41,16 @@ module.exports = {
 
         await interaction.deferReply();
 
+        const categoria = interaction.options.getString("categoria") ?? "Any";
+
         // 1. Obtener chiste
-        const res = await fetch("https://v2.jokeapi.dev/joke/Any?lang=es&type=twopart");
+        const res = await fetch(`https://v2.jokeapi.dev/joke/${categoria}?lang=es&type=twopart`);
         const joke = await res.json();
+
+        if (joke.error) {
+            return interaction.editReply(`❌ No encontré chistes en esa categoría en español. Prueba con otra.`);
+        }
+
         const texto = `${joke.setup}... ${joke.delivery}`;
 
         // 2. Edge TTS
@@ -75,6 +98,7 @@ module.exports = {
             connection.destroy();
         });
 
-        await interaction.editReply(`🎤 **${texto}**`);
+        const nombreCategoria = Object.entries(CATEGORIAS).find(([, v]) => v === categoria)?.[0] ?? categoria;
+        await interaction.editReply(`🎤 **${texto}**\n\n*Categoría: ${nombreCategoria}*`);
     }
 };
