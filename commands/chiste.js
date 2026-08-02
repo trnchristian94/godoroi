@@ -10,7 +10,7 @@ const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 const Groq = require("groq-sdk");
 const fs = require("fs");
 
-const groq = new Groq({ apiKey: process.env.GROQ });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const CATEGORIAS = {
     "🎲 Cualquiera":        "Any",
