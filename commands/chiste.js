@@ -1,13 +1,18 @@
-const { SlashCommandBuilder, ChannelType } = require("discord.js");
+const { 
+    SlashCommandBuilder, 
+    ChannelType 
+} = require("discord.js");
 const {
     joinVoiceChannel,
     createAudioPlayer,
     createAudioResource,
     entersState,
-    VoiceConnectionStatus
+    VoiceConnectionStatus,
+    StreamType
 } = require("@discordjs/voice");
-const fs = require("fs");
-const path = require("path");
+
+// Esto es clave — apunta a ffmpeg-static
+process.env.FFMPEG_PATH = require("ffmpeg-static");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -15,7 +20,6 @@ module.exports = {
         .setDescription("El bot se une a tu canal y cuenta un chiste"),
 
     async execute(interaction) {
-        // Comprobar que el usuario está en voz
         const canal = interaction.member?.voice?.channel;
         if (!canal) {
             return interaction.reply({ 
@@ -26,32 +30,43 @@ module.exports = {
 
         await interaction.deferReply();
 
-        // 1. Obtener chiste en español
+        // 1. Obtener chiste
         const res = await fetch("https://v2.jokeapi.dev/joke/Any?lang=es&type=twopart");
         const joke = await res.json();
         const texto = `${joke.setup}... ${joke.delivery}`;
 
-        // 2. Convertir a audio con Google TTS (gratuito, sin API key)
+        // 2. TTS de Google
         const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(texto)}&tl=es&client=tw-ob`;
 
-        // 3. Unirse al canal de voz
+        // 3. Unirse al canal
         const connection = joinVoiceChannel({
             channelId: canal.id,
             guildId: interaction.guild.id,
             adapterCreator: interaction.guild.voiceAdapterCreator,
         });
 
-        await entersState(connection, VoiceConnectionStatus.Ready, 5000);
+        try {
+            await entersState(connection, VoiceConnectionStatus.Ready, 5000);
+        } catch {
+            connection.destroy();
+            return interaction.editReply("❌ No pude unirme al canal.");
+        }
 
         // 4. Reproducir
         const player = createAudioPlayer();
-        const resource = createAudioResource(ttsUrl);
+        const resource = createAudioResource(ttsUrl, {
+            inputType: StreamType.Arbitrary
+        });
 
         player.play(resource);
         connection.subscribe(player);
 
-        // 5. Desconectar cuando termine
         player.on("idle", () => {
+            setTimeout(() => connection.destroy(), 1000);
+        });
+
+        player.on("error", err => {
+            console.error("Error de audio:", err);
             connection.destroy();
         });
 
