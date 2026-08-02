@@ -6,6 +6,7 @@ const {
     entersState,
     VoiceConnectionStatus,
 } = require("@discordjs/voice");
+const edgeTTS = require("edge-tts");
 const fs = require("fs");
 
 module.exports = {
@@ -29,32 +30,19 @@ module.exports = {
         const joke = await res.json();
         const texto = `${joke.setup}... ${joke.delivery}`;
 
-        // 2. ElevenLabs TTS
+        // 2. Edge TTS
         const audioPath = `/tmp/chiste_${Date.now()}.mp3`;
 
-        const ttsRes = await fetch(
-            "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM",
-            {
-                method: "POST",
-                headers: {
-                    "xi-api-key": process.env.ELEVENLABS_KEY,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    text: texto,
-                    model_id: "eleven_multilingual_v2",
-                    voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-                })
-            }
-        );
-
-        if (!ttsRes.ok) {
-            console.error("ElevenLabs error:", await ttsRes.text());
+        try {
+            await edgeTTS.tts({
+                text: texto,
+                voice: "es-ES-AlvaroNeural",
+                outputFile: audioPath
+            });
+        } catch (e) {
+            console.error("Edge TTS error:", e);
             return interaction.editReply("❌ Error generando el audio.");
         }
-
-        const buffer = Buffer.from(await ttsRes.arrayBuffer());
-        fs.writeFileSync(audioPath, buffer);
 
         // 3. Unirse al canal
         const connection = joinVoiceChannel({
