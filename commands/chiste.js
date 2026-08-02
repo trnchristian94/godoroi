@@ -1,6 +1,4 @@
-const { 
-    SlashCommandBuilder
-} = require("discord.js");
+const { SlashCommandBuilder } = require("discord.js");
 const {
     joinVoiceChannel,
     createAudioPlayer,
@@ -9,7 +7,6 @@ const {
     VoiceConnectionStatus,
 } = require("@discordjs/voice");
 const fs = require("fs");
-const { execSync } = require("child_process");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -32,22 +29,32 @@ module.exports = {
         const joke = await res.json();
         const texto = `${joke.setup}... ${joke.delivery}`;
 
-        // 2. Descargar TTS con curl simulando navegador
+        // 2. ElevenLabs TTS
         const audioPath = `/tmp/chiste_${Date.now()}.mp3`;
-        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(texto)}&tl=es&client=tw-ob`;
 
-        try {
-            execSync(`curl -s -A "Mozilla/5.0" -o "${audioPath}" "${ttsUrl}"`);
-        } catch (e) {
-            console.error("Error descargando TTS:", e);
-            return interaction.editReply("❌ No pude generar el audio.");
+        const ttsRes = await fetch(
+            "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM",
+            {
+                method: "POST",
+                headers: {
+                    "xi-api-key": process.env.ELEVENLABS_KEY,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    text: texto,
+                    model_id: "eleven_multilingual_v2",
+                    voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+                })
+            }
+        );
+
+        if (!ttsRes.ok) {
+            console.error("ElevenLabs error:", await ttsRes.text());
+            return interaction.editReply("❌ Error generando el audio.");
         }
 
-        // Comprobar que el archivo tiene contenido
-        const stat = fs.statSync(audioPath);
-        if (stat.size < 1000) {
-            return interaction.editReply("❌ Google TTS bloqueó la petición.");
-        }
+        const buffer = Buffer.from(await ttsRes.arrayBuffer());
+        fs.writeFileSync(audioPath, buffer);
 
         // 3. Unirse al canal
         const connection = joinVoiceChannel({
@@ -63,7 +70,7 @@ module.exports = {
             return interaction.editReply("❌ No pude unirme al canal.");
         }
 
-        // 4. Reproducir archivo local
+        // 4. Reproducir
         const player = createAudioPlayer();
         const resource = createAudioResource(audioPath);
 
@@ -72,7 +79,7 @@ module.exports = {
 
         player.on("idle", () => {
             setTimeout(() => connection.destroy(), 500);
-            fs.unlinkSync(audioPath); // limpiar archivo
+            try { fs.unlinkSync(audioPath); } catch {}
         });
 
         player.on("error", err => {
