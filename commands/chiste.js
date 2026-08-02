@@ -6,7 +6,8 @@ const {
     entersState,
     VoiceConnectionStatus,
 } = require("@discordjs/voice");
-const edgeTTS = require("edge-tts");
+const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
+
 const fs = require("fs");
 
 module.exports = {
@@ -34,11 +35,9 @@ module.exports = {
         const audioPath = `/tmp/chiste_${Date.now()}.mp3`;
 
         try {
-            await edgeTTS.tts({
-                text: texto,
-                voice: "es-ES-AlvaroNeural",
-                outputFile: audioPath
-            });
+            const tts = new MsEdgeTTS();
+            await tts.setMetadata("es-ES-AlvaroNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+            await tts.toFile(audioPath, texto);
         } catch (e) {
             console.error("Edge TTS error:", e);
             return interaction.editReply("❌ Error generando el audio.");
