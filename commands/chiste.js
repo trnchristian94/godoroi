@@ -1,6 +1,5 @@
 const { 
-    SlashCommandBuilder, 
-    ChannelType 
+    SlashCommandBuilder
 } = require("discord.js");
 const {
     joinVoiceChannel,
@@ -8,11 +7,9 @@ const {
     createAudioResource,
     entersState,
     VoiceConnectionStatus,
-    StreamType
 } = require("@discordjs/voice");
-
-// Esto es clave — apunta a ffmpeg-static
-process.env.FFMPEG_PATH = require("ffmpeg-static");
+const fs = require("fs");
+const { execSync } = require("child_process");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -35,8 +32,22 @@ module.exports = {
         const joke = await res.json();
         const texto = `${joke.setup}... ${joke.delivery}`;
 
-        // 2. TTS de Google
+        // 2. Descargar TTS con curl simulando navegador
+        const audioPath = `/tmp/chiste_${Date.now()}.mp3`;
         const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(texto)}&tl=es&client=tw-ob`;
+
+        try {
+            execSync(`curl -s -A "Mozilla/5.0" -o "${audioPath}" "${ttsUrl}"`);
+        } catch (e) {
+            console.error("Error descargando TTS:", e);
+            return interaction.editReply("❌ No pude generar el audio.");
+        }
+
+        // Comprobar que el archivo tiene contenido
+        const stat = fs.statSync(audioPath);
+        if (stat.size < 1000) {
+            return interaction.editReply("❌ Google TTS bloqueó la petición.");
+        }
 
         // 3. Unirse al canal
         const connection = joinVoiceChannel({
@@ -52,21 +63,20 @@ module.exports = {
             return interaction.editReply("❌ No pude unirme al canal.");
         }
 
-        // 4. Reproducir
+        // 4. Reproducir archivo local
         const player = createAudioPlayer();
-        const resource = createAudioResource(ttsUrl, {
-            inputType: StreamType.Arbitrary
-        });
+        const resource = createAudioResource(audioPath);
 
         player.play(resource);
         connection.subscribe(player);
 
         player.on("idle", () => {
-            setTimeout(() => connection.destroy(), 1000);
+            setTimeout(() => connection.destroy(), 500);
+            fs.unlinkSync(audioPath); // limpiar archivo
         });
 
         player.on("error", err => {
-            console.error("Error de audio:", err);
+            console.error("Error reproduciendo:", err.message);
             connection.destroy();
         });
 
