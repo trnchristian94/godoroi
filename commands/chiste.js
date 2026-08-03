@@ -10,8 +10,6 @@ const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 const Groq = require("groq-sdk");
 const fs = require("fs");
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
 const CATEGORIAS = {
     "🎲 Cualquiera":         "Any",
     "🎭 Varios":             "Misc",
@@ -31,8 +29,21 @@ const PROMPTS = {
     "Christmas":   "Cuéntame un chiste navideño en español. Con referencias a Papá Noel, Reyes Magos, turrón o similares.",
     "Programming": "Cuéntame un chiste de programación o informática en español. Para que lo entiendan programadores.",
     "Dark":        "Cuéntame un chiste de humor negro en español. Sin censura, que sea oscuro de verdad.",
-    "Cunado":      "Cuéntame un chiste típico de cuñado español. De esos que suelta el cuñado en las comidas familiares. Los que más gustan son los que empiezan por 'Camarero' y siguen con una frase, pero no te cierres únicamente a esos chistes.",
+    "Cunado":      "Cuéntame un chiste típico de cuñado español. De esos que suelta el cuñado en las comidas familiares: simples, un poco malos, con remate predecible pero que igual te arranca una sonrisa. Sobre fútbol, política, la crisis, los yernos, etc.",
 };
+
+function construirPrompt(categoria, personas) {
+    let base = PROMPTS[categoria] ?? PROMPTS["Any"];
+
+    if (personas.length === 0) return base;
+
+    const listado = personas.join(", ");
+    const protagonistas = personas.length === 1
+        ? `El protagonista del chiste es ${personas[0]}.`
+        : `Los protagonistas del chiste son ${listado}. Menciónalos a todos.`;
+
+    return `${base} ${protagonistas} Usa sus nombres de forma natural en la historia.`;
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -40,10 +51,19 @@ module.exports = {
         .setDescription("El bot se une a tu canal y cuenta un chiste")
         .addStringOption(o =>
             o.setName("categoria")
-                .setDescription("Tipo de chiste (opcional, por defecto cualquiera)")
+                .setDescription("Tipo de chiste (opcional)")
                 .addChoices(
                     ...Object.entries(CATEGORIAS).map(([name, value]) => ({ name, value }))
-                )),
+                ))
+        .addStringOption(o =>
+            o.setName("persona1")
+                .setDescription("Protagonista del chiste (opcional)"))
+        .addStringOption(o =>
+            o.setName("persona2")
+                .setDescription("Segundo protagonista (opcional)"))
+        .addStringOption(o =>
+            o.setName("persona3")
+                .setDescription("Tercer protagonista (opcional)")),
 
     async execute(interaction) {
         const canal = interaction.member?.voice?.channel;
@@ -57,18 +77,26 @@ module.exports = {
         await interaction.deferReply();
 
         const categoria = interaction.options.getString("categoria") ?? "Any";
+        const personas = [
+            interaction.options.getString("persona1"),
+            interaction.options.getString("persona2"),
+            interaction.options.getString("persona3"),
+        ].filter(Boolean);
+
+        const prompt = construirPrompt(categoria, personas);
 
         // 1. Generar chiste con Groq
         let texto;
         try {
+            const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
             const respuesta = await groq.chat.completions.create({
-                model: "llama-3.3-70b-versatile", // ← cambia esto
+                model: "llama-3.3-70b-versatile",
                 messages: [
                     { 
                         role: "system", 
                         content: "Eres un comediante español experto en humor. Respondes SOLO con el chiste, sin introducciones, sin explicaciones, sin comillas, sin 'aquí va mi chiste' ni nada parecido. Solo el chiste directamente." 
                     },
-                    { role: "user", content: PROMPTS[categoria] }
+                    { role: "user", content: prompt }
                 ],
                 max_tokens: 300
             });
@@ -123,7 +151,10 @@ module.exports = {
             connection.destroy();
         });
 
+        // 5. Respuesta en texto
         const nombreCategoria = Object.entries(CATEGORIAS).find(([, v]) => v === categoria)?.[0] ?? categoria;
-        await interaction.editReply(`🎤 **${texto}**\n\n*Categoría: ${nombreCategoria}*`);
+        const personasTexto = personas.length > 0 ? ` · 👥 ${personas.join(", ")}` : "";
+
+        await interaction.editReply(`🎤 **${texto}**\n\n*${nombreCategoria}${personasTexto}*`);
     }
 };
